@@ -1,0 +1,21 @@
+{
+  "name": "CULT Finance",
+  "short_name": "CULT Finance",
+  "description": "Οικονομική και φορολογική εικόνα επιχείρησης",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#101816",
+  "theme_color": "#101816",
+  "lang": "el",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
