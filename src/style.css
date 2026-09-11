@@ -619,3 +619,31 @@ form.panel {
     display: none !important;
   }
 }
+.reset-panel {
+  border-color: #e5b5ad;
+  margin-top: 36px;
+}
+.reset-panel label {
+  display: block;
+  margin: 20px 0;
+  font-weight: 600;
+}
+.reset-panel input {
+  display: block;
+  margin-top: 8px;
+  max-width: 420px;
+}
+.reset-panel button {
+  padding: 11px 14px;
+  border: 1px solid #d7dfdc;
+  border-radius: 9px;
+  background: white;
+}
+.reset-panel .danger {
+  background: #a82f24;
+  color: white;
+  border-color: #a82f24;
+}
+.reset-panel li {
+  margin: 8px 0;
+}

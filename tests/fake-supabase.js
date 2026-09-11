@@ -56,6 +56,14 @@ class Query {
     this.filters = [];
     this.action = "read";
   }
+  delete() {
+    this.action = "delete";
+    return this;
+  }
+  in(k, values) {
+    this.filters.push((r) => values.includes(r[k]));
+    return this;
+  }
   select() {
     return this;
   }
@@ -110,6 +118,8 @@ class Query {
         let rows = db[this.table].filter((r) =>
           this.filters.every((f) => f(r)),
         );
+        if (this.action === "delete")
+          db[this.table] = db[this.table].filter((r) => !rows.includes(r));
         if (this.action === "insert") {
           const row = { id: crypto.randomUUID(), ...this.payload };
           db[this.table].push(row);

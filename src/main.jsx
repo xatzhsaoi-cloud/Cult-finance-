@@ -29,6 +29,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import "./style.css";
+import ResetFinance from "./ResetFinance.jsx";
 import {
   today,
   monthRange,
@@ -1086,15 +1087,13 @@ function Obligations({ ctx }) {
     if (!validAmount(f.get("amount")))
       return setError("Συμπληρώστε θετικό ποσό.");
     mutate(
-      supabase
-        .from("obligations")
-        .insert({
-          business_id: ctx.business.id,
-          title: f.get("title").trim(),
-          amount: Number(f.get("amount")),
-          due_date: f.get("due"),
-          status: "pending",
-        }),
+      supabase.from("obligations").insert({
+        business_id: ctx.business.id,
+        title: f.get("title").trim(),
+        amount: Number(f.get("amount")),
+        due_date: f.get("due"),
+        status: "pending",
+      }),
     );
   }
   function paid(id) {
@@ -1176,49 +1175,309 @@ function Obligations({ ctx }) {
   );
 }
 function Fixed({ ctx }) {
-  const d = useFinance(ctx, ...monthRange());
-  if (d.loading || d.error) return <DataStatus data={d} />;
+  const [rows, setRows] = useState([]),
+    [loading, setLoading] = useState(true),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [editing, setEditing] = useState(null);
+  const lock = useRef(false);
+  async function load() {
+    setLoading(true);
+    try {
+      setRows(
+        await fetchAll(() =>
+          supabase
+            .from("recurring_expenses")
+            .select("*")
+            .eq("business_id", ctx.business.id)
+            .order("day_of_month")
+            .order("id"),
+        ),
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, [ctx.business.id]);
+  async function save(e) {
+    e.preventDefault();
+    if (lock.current) return;
+    const f = new FormData(e.currentTarget),
+      title = f.get("title").trim(),
+      amount = Number(f.get("amount")),
+      day = Number(f.get("day"));
+    if (
+      !title ||
+      !validAmount(amount) ||
+      !Number.isInteger(day) ||
+      day < 1 ||
+      day > 31
+    )
+      return setError("Ελέγξτε την περιγραφή, το ποσό και την ημέρα.");
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        business_id: ctx.business.id,
+        title,
+        amount,
+        frequency: editing.frequency || "monthly",
+        day_of_month: day,
+      };
+      const q = editing.id
+        ? supabase
+            .from("recurring_expenses")
+            .update(payload)
+            .eq("id", editing.id)
+            .eq("business_id", ctx.business.id)
+        : supabase.from("recurring_expenses").insert(payload);
+      const { error } = await q.select("id").single();
+      if (error) throw error;
+      setEditing(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
   return (
     <>
-      <Header title="Πάγια έξοδα" />
-      <div className="table">
-        {d.recurring.map((x) => (
-          <div className="row" key={x.id}>
-            <span>{x.title}</span>
-            <span>{x.frequency}</span>
-            <b>{eur(x.amount)}</b>
+      <Header
+        title="Πάγια έξοδα"
+        sub="Καταχώρησε και ενημέρωσε τα επαναλαμβανόμενα έξοδα"
+      >
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() =>
+            setEditing({
+              title: "",
+              amount: "",
+              day_of_month: 1,
+              frequency: "monthly",
+            })
+          }
+        >
+          Νέο μηνιαίο πάγιο
+        </button>
+      </Header>
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      {editing && (
+        <form className="formgrid" onSubmit={save} key={editing.id || "new"}>
+          <label>
+            Περιγραφή παγίου
+            <input
+              name="title"
+              defaultValue={editing.title}
+              required
+              maxLength={200}
+            />
+          </label>
+          <label>
+            Ποσό παγίου (€)
+            <input
+              name="amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              defaultValue={editing.amount}
+              required
+            />
+          </label>
+          <label>
+            Ημέρα μήνα
+            <input
+              name="day"
+              type="number"
+              min="1"
+              max="31"
+              step="1"
+              defaultValue={editing.day_of_month}
+              required
+            />
+          </label>
+          <button className="primary" disabled={busy}>
+            {busy ? "Αποθήκευση…" : "Αποθήκευση παγίου"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setEditing(null)}
+          >
+            Ακύρωση
+          </button>
+        </form>
+      )}
+      {loading ? (
+        <p role="status">Φόρτωση παγίων…</p>
+      ) : (
+        <>
+          <div className="table">
+            {rows.map((x) => (
+              <div className="row" key={x.id}>
+                <span>{x.title}</span>
+                <span>
+                  {x.frequency === "monthly" ? "Κάθε μήνα" : x.frequency} ·{" "}
+                  {x.day_of_month}
+                </span>
+                <b>{eur(x.amount)}</b>
+                <button
+                  disabled={busy}
+                  className="mini"
+                  onClick={() => setEditing(x)}
+                >
+                  Επεξεργασία
+                </button>
+              </div>
+            ))}
+            {!rows.length && !error && (
+              <p className="muted">Δεν υπάρχουν πάγια. Πρόσθεσε το πρώτο.</p>
+            )}
           </div>
-        ))}
-      </div>
-      <div className="cards three">
-        <Card
-          label="Μηνιαία πάγια (εκτίμηση)"
-          value={eur(
-            d.recurring
-              .filter((x) => x.frequency === "monthly")
-              .reduce((s, x) => s + Number(x.amount), 0),
-          )}
-        />
-      </div>
+          <div className="cards three">
+            <Card
+              label="Μηνιαία πάγια"
+              value={eur(
+                sum(
+                  rows.filter((x) => x.frequency === "monthly"),
+                  "amount",
+                ),
+              )}
+            />
+          </div>
+        </>
+      )}
     </>
   );
 }
 function Goals({ ctx }) {
   const d = useFinance(ctx, ...monthRange()),
     c = calc(d.incomes, d.expenses),
-    g = d.goals || {},
+    [saved, setSaved] = useState(null),
+    [editing, setEditing] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const lock = useRef(false),
+    g = saved || d.goals || {},
     pct =
       Number(g.monthly_target) > 0
         ? Math.max(0, (c.turnover / Number(g.monthly_target)) * 100)
         : 0;
+  async function save(e) {
+    e.preventDefault();
+    if (lock.current) return;
+    const f = new FormData(e.currentTarget),
+      payload = {
+        business_id: ctx.business.id,
+        daily_target: Number(f.get("daily")),
+        monthly_target: Number(f.get("monthly")),
+        fixed_costs_monthly: Number(f.get("fixed")),
+      };
+    if (
+      ![
+        payload.daily_target,
+        payload.monthly_target,
+        payload.fixed_costs_monthly,
+      ].every((v) => validAmount(v, true))
+    )
+      return setError("Συμπληρώστε μη αρνητικά ποσά.");
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const q =
+        saved || d.goals
+          ? supabase
+              .from("goals")
+              .update(payload)
+              .eq("business_id", ctx.business.id)
+          : supabase.from("goals").insert(payload);
+      const { data, error } = await q.select("*").single();
+      if (error) throw error;
+      setSaved(data);
+      setEditing(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
   if (d.loading || d.error) return <DataStatus data={d} />;
   return (
     <>
-      <Header title="Στόχοι" />
+      <Header title="Στόχοι">
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => setEditing(!editing)}
+        >
+          {editing ? "Ακύρωση" : "Ορισμός στόχων"}
+        </button>
+      </Header>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {editing && (
+        <form className="formgrid" onSubmit={save}>
+          <label>
+            Ημερήσιος στόχος (€)
+            <input
+              name="daily"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={g.daily_target ?? 0}
+              required
+            />
+          </label>
+          <label>
+            Μηνιαίος στόχος (€)
+            <input
+              name="monthly"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={g.monthly_target ?? 0}
+              required
+            />
+          </label>
+          <label>
+            Σταθερό μηνιαίο κόστος (€)
+            <input
+              name="fixed"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={g.fixed_costs_monthly ?? 0}
+              required
+            />
+          </label>
+          <button className="primary" disabled={busy}>
+            {busy ? "Αποθήκευση…" : "Αποθήκευση στόχων"}
+          </button>
+        </form>
+      )}
       <div className="cards">
         <Card label="Ημερήσιος στόχος" value={eur(g.daily_target)} />
         <Card label="Μηνιαίος στόχος" value={eur(g.monthly_target)} />
-        <Card label="Break-even / πάγια" value={eur(g.fixed_costs_monthly)} />
+        <Card
+          label="Σταθερό μηνιαίο κόστος"
+          value={eur(g.fixed_costs_monthly)}
+        />
         <Card label="Τζίρος μήνα" value={eur(c.turnover)} />
       </div>
       <section className="panel">
@@ -1226,7 +1485,12 @@ function Goals({ ctx }) {
         <div className="progress">
           <i style={{ width: Math.min(100, pct) + "%" }} />
         </div>
-        <p>{pct.toFixed(1)}% του στόχου</p>
+        <p>
+          {Number(g.monthly_target) > 0
+            ? pct.toLocaleString("el-GR", { maximumFractionDigits: 1 }) +
+              "% του στόχου"
+            : "Όρισε μηνιαίο στόχο για να βλέπεις την πρόοδο."}
+        </p>
       </section>
     </>
   );
@@ -1368,6 +1632,7 @@ function SettingsPage({ ctx, rerender }) {
           {busy ? "Αποθήκευση…" : "Αποθήκευση"}
         </button>
       </form>
+      <ResetFinance client={supabase} ctx={ctx} onDone={rerender} />
     </>
   );
 }

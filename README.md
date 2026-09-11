@@ -32,3 +32,9 @@ The explicit test config replaces the Supabase client with in-memory, synthetic 
 ## Remaining integrations
 
 myDATA, POS and bank sync are not implemented. The production Supabase project is different from the newer project named Cult Finance in the connected account. This update does not migrate data or alter database policies. Production authorization must still be enforced by the database's RLS policies.
+
+## Starting over
+
+Owners can open Settings → New start to preview all financial records for their business, download a JSON snapshot and explicitly confirm a reset. The reset deletes only the previewed IDs from income, expenses, obligations, cash closings and recurring expenses, then resets opening cash and goal amounts. Identity, business details, tax settings and categories remain. Every table is read again to detect denied deletes or new records. The client cannot provide an atomic transaction: errors list completed steps and stop further work. Existing database RLS remains authoritative.
+
+Monthly recurring expenses and goals can be entered again through their respective pages. Run `pnpm test` for both finance and reset coverage. Production reset must be explicitly approved; adding the feature does not itself erase any data.
