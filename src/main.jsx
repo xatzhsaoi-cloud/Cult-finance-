@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import "./style.css";
 import ResetFinance from "./ResetFinance.jsx";
+import AnnualTax from "./AnnualTax.jsx";
 import {
   today,
   monthRange,
@@ -192,7 +193,7 @@ function App() {
     cash: Cash,
     income: Income,
     expenses: Expenses,
-    tax: Tax,
+    tax: AnnualTax,
     overview: Overview,
     obligations: Obligations,
     fixed: Fixed,
@@ -954,41 +955,6 @@ function Cash({ ctx }) {
           </button>
         )}
       </form>
-    </>
-  );
-}
-function Tax({ ctx }) {
-  const d = useFinance(ctx, ...monthRange()),
-    c = calc(d.incomes, d.expenses),
-    tax =
-      (Math.max(0, c.profit) * Number(ctx.business.income_tax_pct ?? 22)) / 100,
-    res =
-      (Math.max(0, c.profit) * Number(ctx.business.tax_reserve_pct ?? 20)) /
-      100;
-  if (d.loading || d.error) return <DataStatus data={d} />;
-  return (
-    <>
-      <Header title="Φορολογική εικόνα" sub="Εκτίμηση τρέχοντος μήνα" />
-      <div className="notice">
-        Οι υπολογισμοί είναι ενδεικτικοί και δεν αποτελούν λογιστική ή
-        φοροτεχνική συμβουλή.
-      </div>
-      <div className="cards">
-        <Card label="ΦΠΑ εκροών" value={eur(c.vatOut)} />
-        <Card label="ΦΠΑ εισροών" value={eur(c.vatIn)} />
-        <Card
-          label="Εκτιμώμενος πληρωτέος ΦΠΑ"
-          value={eur(Math.max(0, c.vatDue))}
-        />
-        <Card label="Κέρδος προ φόρων" value={eur(c.profit)} />
-        <Card
-          label={
-            "Εκτ. φόρος εισοδήματος (" + ctx.business.income_tax_pct + "%)"
-          }
-          value={eur(tax)}
-        />
-        <Card label="Προτεινόμενο φορολογικό αποθεματικό" value={eur(res)} />
-      </div>
     </>
   );
 }

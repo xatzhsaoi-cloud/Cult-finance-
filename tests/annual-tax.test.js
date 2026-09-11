@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {annualEstimate,annualDefaults} from '../src/annual-tax.js';
+const estimate=(p={})=>annualEstimate({...annualDefaults(2023),turnover:30000,expenses:10000,vatInput:2400,...p});
+test('2023 uses progressive tax and VAT on net turnover',()=>{const r=estimate();assert.equal(r.tax,3100);assert.equal(r.vatOut,7200);assert.equal(r.vatBalance,4800);assert.equal(r.advance,1705)});
+test('new business reduction only at <=10000 and first three years',()=>{assert.equal(estimate({turnover:10000,expenses:0,firstStart:true}).tax,450);assert.equal(estimate({turnover:10001,expenses:0,firstStart:true}).tax,900.22);assert.equal(estimate({year:2025,turnover:10000,expenses:0,firstStart:true}).tax,450);assert.equal(estimate({year:2026,turnover:10000,expenses:0,firstStart:true,age:'over30'}).tax,900)});
+test('2026 age and family bands',()=>{assert.equal(estimate({year:2026,age:'over30'}).tax,2900);assert.equal(estimate({year:2026,age:'under26'}).tax,0);assert.equal(estimate({year:2026,age:'26to30'}).tax,1800);assert.equal(estimate({year:2026,age:'over30',children:4,turnover:30000,expenses:0}).tax,1800);assert.equal(estimate({year:2026,age:'over30',children:5,turnover:30000,expenses:0}).tax,1600)});
+test('top bands and threshold continuity',()=>{assert.equal(estimate({turnover:70000,expenses:0}).tax,22700);assert.equal(estimate({year:2026,age:'over30',turnover:70000,expenses:0}).tax,21100)});
+test('loss, minimum taxable floor, payments and credit balances',()=>{assert.equal(estimate({expenses:40000}).tax,0);assert.equal(estimate({expenses:40000,minimum:10000}).tax,900);const r=estimate({vatPaid:6000,taxCredits:5000,advance:'first'});assert.equal(r.advance,852.5);assert.equal(r.incomeBalance,-1047.5);assert.equal(r.vatBalance,-1200)});
+test('invalid input and unsupported years are rejected',()=>{for(const p of [{turnover:-1},{vatInput:'bad'},{year:2027},{vatRate:101},{children:1.5},{year:2026}]) assert.throws(()=>estimate(p));});
